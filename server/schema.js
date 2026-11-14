@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { config } from "./config.js";
-import { clamp } from "./scoring.js";
 
 const str = (max) => z.string().trim().min(1).max(max);
 const strList = (maxItems, maxLen) =>
@@ -52,6 +51,19 @@ function list(x, max, maxLen) {
 }
 const text = (x, maxLen) => (typeof x === "string" ? x.trim().slice(0, maxLen) : "");
 
+/**
+ * A 0-100 score from model output, rounded. Accepts a finite number or a plain numeric string ("72").
+ * Throws on anything else (missing, null, NaN, Infinity, "high", out of range) so a malformed reply
+ * is retried or reported instead of silently becoming 0 and producing a wrong verdict.
+ */
+export function strictScore(x, field) {
+  const n = typeof x === "number" ? x : typeof x === "string" && /^\s*-?\d+(\.\d+)?\s*$/.test(x) ? Number(x) : NaN;
+  if (!Number.isFinite(n) || n < 0 || n > 100) {
+    throw new Error(`${field} must be a number from 0 to 100, got ${JSON.stringify(x) ?? "undefined"}.`);
+  }
+  return Math.round(n);
+}
+
 /** Turn raw model JSON into a safe analysis object, or throw. */
 export function normalizeAnalysis(raw) {
   const rawQs = Array.isArray(raw?.questions) ? raw.questions.slice(0, 3) : [];
@@ -60,7 +72,7 @@ export function normalizeAnalysis(raw) {
     role: text(raw.role, 200),
     company: text(raw.company, 200),
     seniority: text(raw.seniority, 100),
-    fitScore: clamp(raw.fitScore, 0, 100),
+    fitScore: strictScore(raw.fitScore, "fitScore"),
     fitSummary: text(raw.fitSummary, 600),
     matched: list(raw.matched, 5, 120),
     gaps: list(raw.gaps, 4, 160),
@@ -88,7 +100,7 @@ export function normalizeGrade(raw, analysis) {
   return {
     answers: rawAnswers.map((a, i) => ({
       id: analysis.questions[i].id,
-      score: clamp(a?.score, 0, 100),
+      score: strictScore(a?.score, `answers[${i}].score`),
       covered: list(a?.covered, 4, 160),
       missed: list(a?.missed, 4, 160),
       sayItLike: text(a?.sayItLike, 700),

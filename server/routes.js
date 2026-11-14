@@ -7,6 +7,14 @@ import { averageScore, computeChance, verdictOf } from "./scoring.js";
 
 export const api = Router();
 
+// Output-token ceilings. The default models think before answering (adaptive thinking is on
+// when `thinking` is omitted), and thinking tokens count toward max_tokens. The visible JSON is
+// about 1k tokens for analyze and about 1.5-2k for grade, so these leave room for thinking.
+// They are ceilings, not targets: billing is for tokens actually generated. They stay well
+// under the SDK's non-streaming limit (~21k) and fit inside config.aiTimeoutMs.
+export const ANALYZE_MAX_TOKENS = 8000;
+export const GRADE_MAX_TOKENS = 12000;
+
 function parse(schema, body) {
   const out = schema.safeParse(body);
   if (out.success) return out.data;
@@ -16,7 +24,10 @@ function parse(schema, body) {
 }
 
 api.get("/health", (_req, res) => {
-  res.json({ ok: true, mock: config.mock });
+  // "ai" says whether analysis can work, without exposing any secret. 503 when it cannot,
+  // so the page shows its existing "service is not reachable" notice.
+  const ai = config.mock ? "mock" : config.apiKey ? "configured" : "missing";
+  res.status(ai === "missing" ? 503 : 200).json({ ok: ai !== "missing", mock: config.mock, ai });
 });
 
 api.post("/analyze", async (req, res, next) => {
@@ -24,20 +35,15 @@ api.post("/analyze", async (req, res, next) => {
     const body = parse(analyzeBody, req.body);
     const cv = body.cv.slice(0, config.maxDocChars);
     const jd = body.jd.slice(0, config.maxDocChars);
-    const raw = await callJSON({
+    const analysis = await callJSON({
       kind: "analyze",
       model: config.analyzeModel,
       prompt: analyzePrompt({ cv, jd }),
-      maxTokens: 2000,
+      maxTokens: ANALYZE_MAX_TOKENS,
       mockData: mocks.analysis,
+      normalize: normalizeAnalysis,
+      failMessage: "Could not prepare 3 questions. Try again.",
     });
-    let analysis;
-    try {
-      analysis = normalizeAnalysis(raw);
-    } catch (err) {
-      console.error("[analyze] invalid model output:", err.message);
-      throw new HttpError(502, "Could not prepare 3 questions. Try again.");
-    }
     res.json({ analysis });
   } catch (err) {
     next(err);
@@ -50,20 +56,15 @@ api.post("/grade", async (req, res, next) => {
     const clipped = Object.fromEntries(
       Object.entries(answers).map(([id, text]) => [id, text.slice(0, config.maxAnswerChars)]),
     );
-    const raw = await callJSON({
+    const result = await callJSON({
       kind: "grade",
       model: config.gradeModel,
       prompt: gradePrompt({ analysis, answers: clipped }),
-      maxTokens: 2500,
+      maxTokens: GRADE_MAX_TOKENS,
       mockData: () => mocks.grade(clipped),
+      normalize: (raw) => normalizeGrade(raw, analysis),
+      failMessage: "Could not grade all 3 answers. Try again.",
     });
-    let result;
-    try {
-      result = normalizeGrade(raw, analysis);
-    } catch (err) {
-      console.error("[grade] invalid model output:", err.message);
-      throw new HttpError(502, "Could not grade all 3 answers. Try again.");
-    }
     const scores = result.answers.map((a) => a.score);
     const chance = computeChance(analysis.fitScore, scores);
     res.json({

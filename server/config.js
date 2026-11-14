@@ -14,6 +14,8 @@ export const config = {
   analyzeModel: process.env.ANALYZE_MODEL || "claude-haiku-5-5",
   // Grading is a judgment call, so it defaults to the stronger model.
   gradeModel: process.env.GRADE_MODEL || "claude-sonnet-5-5",
+  // Per-request limit for one Anthropic call; the SDK retries at most once.
+  aiTimeoutMs: int(process.env.AI_TIMEOUT_MS, 120_000),
   maxDocChars: int(process.env.MAX_DOC_CHARS, 14000),
   maxAnswerChars: int(process.env.MAX_ANSWER_CHARS, 3000),
   rateLimitWindowMs: int(process.env.RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
