@@ -204,7 +204,6 @@
     $("v-q").innerHTML =
       '<div class="narrow pagehead qp"><div class="crumb"><b>0' + (i + 2) + "</b><i></i><span>Question " + (i + 1) + " of 3 &middot; " + q.kind + " &middot; " + esc(q.topic) + "</span></div>" + snap +
       '<h1 class="qh">' + esc(q.question) + '</h1><p class="lead">' + esc(q.why) + "</p>" +
-      '<details><summary>Show what a strong answer covers</summary><ul class="checks">' + q.passPoints.map(function (p) { return '<li><svg width="18" height="18" style="color:var(--orange)"><use href="#i-check"/></svg>' + esc(p) + "</li>"; }).join("") + "</ul></details>" +
       '<label class="sr-only" for="ans">Your answer</label><textarea id="ans" placeholder="Write your answer the way you would say it in the interview. Name tools, trade-offs and real numbers where you can.">' + esc(state.answers[q.id] || "") + "</textarea>" +
       '<div class="meta"><span class="hint" id="cnt"></span><span style="display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:baseline;gap:4px 12px;text-align:right"><span class="hint" id="vstat" role="status" aria-live="polite"></span>' +
       '<button class="linkbtn" id="mic" type="button" aria-pressed="false" hidden title="Uses your browser\'s speech recognition. Offerlens does not record or store audio; your browser may send it to its own speech service.">' +
@@ -291,9 +290,12 @@
       state.qs.map(function (q, i) {
         var r = g.answers[i], st = statusOf(r.score);
         return '<div class="rcard"><div class="hd"><div><p class="eyebrow muted">Question ' + (i + 1) + " &middot; " + q.kind + "</p><h3>" + esc(q.question) + '</h3></div><span class="status ' + st[1] + '">' + st[0] + "</span></div>" +
-          '<div class="cols"><div><h4>You covered</h4>' + (r.covered.length ? '<ul class="checks">' + r.covered.map(function (c) { return '<li><svg width="18" height="18" style="color:var(--good)"><use href="#i-check"/></svg>' + esc(c) + "</li>"; }).join("") + "</ul>" : '<p class="muted" style="font-size:14.5px">Nothing yet.</p>') + "</div>" +
-          '<div><h4>You missed</h4>' + (r.missed.length ? '<ul class="checks x">' + r.missed.map(function (c) { return '<li><svg width="18" height="18"><use href="#i-x"/></svg>' + esc(c) + "</li>"; }).join("") + "</ul>" : '<p class="muted" style="font-size:14.5px">Nothing important.</p>') + "</div></div>" +
-          '<div class="say-box"><h4>A strong answer sounds like this</h4><p>' + esc(r.sayItLike) + "</p></div></div>";
+          '<div class="cols"><div><h4>You covered</h4>' + (r.covered.length ? '<ul class="checks">' + r.covered.map(function (c) { return '<li><svg width="18" height="18" style="color:var(--good)" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>' + esc(c) + "</li>"; }).join("") + "</ul>" : '<p class="muted" style="font-size:14.5px">Nothing yet.</p>') + "</div>" +
+          '<div><h4>You missed</h4>' + (r.missed.length ? '<ul class="checks x">' + r.missed.map(function (c) { return '<li><svg width="18" height="18" aria-hidden="true" focusable="false"><use href="#i-x"/></svg>' + esc(c) + "</li>"; }).join("") + "</ul>" : '<p class="muted" style="font-size:14.5px">Nothing important.</p>') + "</div></div>" +
+          '<div class="say-box"><h4>A strong answer sounds like this</h4><p>' + esc(r.sayItLike) + "</p></div>" +
+          // Key points are shown only here, after all answers are submitted and graded, never on question pages.
+          // The "qp" wrapper reuses the existing collapsed <details> styling unchanged.
+          '<div class="qp"><details><summary>Show what a strong answer covers</summary><ul class="checks">' + q.passPoints.map(function (p) { return '<li><svg width="18" height="18" style="color:var(--orange)" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>' + esc(p) + "</li>"; }).join("") + "</ul></details></div></div>";
       }).join("") + "</div>" +
 
       '<div class="sec"><div class="stats"><div class="row"><div class="a"><p class="eyebrow" style="color:#bbb">Your strongest point</p><p>' + esc(g.strongest) + '</p></div><div class="b"><p class="eyebrow" style="color:#555">Your biggest risk</p><p>' + esc(g.risk) + "</p></div></div></div></div>" +
