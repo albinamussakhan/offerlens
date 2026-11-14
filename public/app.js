@@ -225,6 +225,9 @@
       voice = window.OfferlensVoice.create({
         window: window,
         lang: "en-US",
+        // Debug-only experiments for Safari (no effect without ?voicedebug): &nocontinuous, &nointerim
+        continuous: !(VOICE_DEBUG && /nocontinuous/.test(location.search + location.hash)),
+        interimResults: !(VOICE_DEBUG && /nointerim/.test(location.search + location.hash)),
         onAppend: function (t) {
           if ($("ans") !== ta) return; // this question is no longer on screen
           var s = ta.selectionStart, e = ta.selectionEnd;

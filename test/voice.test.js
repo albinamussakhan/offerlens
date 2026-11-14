@@ -329,6 +329,88 @@ test("Safari-like quick end right after start (no error) is retried, not reporte
   assert.match(log, /auto-restart/);
 });
 
+/* ---------- iPad Safari "aborted" before speech (confirmed by ?voicedebug log) ---------- */
+
+function safariAbortCycle(h, ms = 2_000) {
+  h.rec().fireStart();
+  h.rec().onaudiostart();
+  h.tick(ms);
+  h.rec().onerror({ error: "aborted", message: "Recognition request was canceled" });
+  h.rec().end();
+}
+
+test("iPad: a browser 'aborted' before any speech stops with a clear message instead of restarting", () => {
+  const h = load({ initial: "My typed answer." });
+  h.voice.toggle();
+  safariAbortCycle(h);
+  assert.equal(h.instances.length, 1, "no automatic restart into the same failure");
+  assert.equal(h.state(), "error");
+  assert.match(h.lastDetail(), /stopped speech recognition before it heard anything/);
+  assert.equal(h.answer, "My typed answer.");
+  assert.equal(h.voice.active, false, "microphone released; user can tap again");
+  const log = h.voice.log().join("\n");
+  assert.match(log, /error aborted msg="Recognition request was canceled"/);
+  assert.doesNotMatch(log, /auto-restart/);
+});
+
+test("iPad: tapping again after an abort starts exactly one new session (no loop)", () => {
+  const h = load();
+  h.voice.toggle();
+  safariAbortCycle(h);
+  h.tick(1_000);
+  h.voice.toggle();
+  safariAbortCycle(h);
+  assert.equal(h.instances.length, 2);
+  assert.equal(h.state(), "error");
+});
+
+test("a browser 'aborted' after speech keeps the words and restarts, and later empty aborts stop", () => {
+  const h = load();
+  h.begin();
+  h.rec().results([["first words", false]]);
+  h.rec().onerror({ error: "aborted" });
+  h.rec().end();
+  assert.equal(h.answer, "first words", "unfinished words kept");
+  assert.equal(h.instances.length, 2, "one restart after a session that had speech");
+  safariAbortCycle(h);
+  assert.equal(h.instances.length, 2);
+  assert.equal(h.state(), "error");
+  assert.equal(h.answer, "first words");
+});
+
+test("'aborted' after the user pressed Stop is a normal stop, not an error", () => {
+  const h = load();
+  h.begin();
+  h.tick(600);
+  h.voice.toggle();
+  h.rec().onerror({ error: "aborted" });
+  h.rec().end();
+  assert.equal(h.state(), "stopped");
+  assert.equal(h.lastDetail(), "");
+});
+
+test("sessions that end without speech stop after 3 even when each lasts longer than 1.5 s (no endless restarts)", () => {
+  const h = load();
+  h.voice.toggle();
+  for (let k = 0; k < 6 && h.voice.active; k++) {
+    h.rec().fireStart();
+    h.tick(3_000);
+    h.rec().end(); // ends without speech and without a no-speech error
+  }
+  assert.equal(h.instances.length, 3);
+  assert.equal(h.state(), "error");
+  assert.match(h.lastDetail(), /keeps stopping/);
+});
+
+test("continuous and interim settings can be turned off (debug experiments) and are logged", () => {
+  const h = load();
+  const v = h.V.create({ window: h.win, continuous: false, interimResults: false, onAppend() {}, onState() {} });
+  v.toggle();
+  assert.equal(h.rec().continuous, false);
+  assert.equal(h.rec().interimResults, false);
+  assert.match(v.log().join("\n"), /continuous=0 interim=0 lang=en-US/);
+});
+
 test("diagnostic log records events and error codes but never transcript text", () => {
   const h = load();
   h.begin();

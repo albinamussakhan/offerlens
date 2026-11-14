@@ -20,6 +20,7 @@
     unavailable: "Voice input couldn't start. You can type your answer.",
     unstable: "Voice input keeps stopping. Your text is kept; you can type or try again.",
     hidden: "Voice input paused because the page was hidden. Your text is kept; tap Speak your answer to continue.",
+    aborted: "The browser stopped speech recognition before it heard anything. Your text is kept; try again or type your answer.",
     other: "Voice input stopped because of an error. Your text is kept.",
   };
 
@@ -55,6 +56,7 @@
     var lastFinal = "";      // last finalized transcript in this session (for cumulative-result browsers)
     var interim = "";        // current unfinished words (preview only)
     var gotSpeech = false, startedAt = 0, quickEnds = 0, silentEnds = 0, pendingError = "";
+    var browserAborted = false; // the browser itself aborted this session (our own aborts are filtered by session id)
     var finishTimer = null, lastToggle = -Infinity;
 
     // Diagnostics: event names, error codes, counts and state changes only. Never audio or transcript text.
@@ -127,9 +129,15 @@
       if (wantOn) set("listening", interim);
     }
 
-    function onError(code) {
-      diag("s" + session + " error " + code);
-      if (code === "aborted") return;
+    function onError(code, message) {
+      // The browser's error description (e.g. Safari's reason for aborting) is diagnostic text, not speech.
+      diag("s" + session + " error " + code + (message ? ' msg="' + String(message).slice(0, 160) + '"' : ""));
+      if (code === "aborted") {
+        // Offerlens' own abort() calls bump the session first, so their events never reach here.
+        // An "aborted" that does reach here came from the browser while the user wanted to listen.
+        if (wantOn) browserAborted = true;
+        return;
+      }
       if (code === "no-speech") { silentEnds++; return; } // end follows; handled there
       wantOn = false;
       pendingError = MSG[code] || MSG.other;
@@ -159,11 +167,13 @@
         return;
       }
       if (wantOn) {
-        var quick = now() - startedAt < 1500 && !gotSpeech;
-        quickEnds = quick ? quickEnds + 1 : 0;
+        // Every session that ends without speech counts, however long it lasted, so a browser that keeps
+        // ending or aborting recognition can never cause endless microphone restarts.
+        quickEnds = gotSpeech ? 0 : quickEnds + 1;
         if (gotSpeech) silentEnds = 0;
-        if (quickEnds >= 3) { wantOn = false; pendingError = MSG.unstable; }
-        else if (silentEnds >= 3) { wantOn = false; set("stopped", "No speech detected. Voice input stopped."); return; }
+        if (browserAborted && !gotSpeech) { wantOn = false; pendingError = MSG.aborted; } // restarting repeats it
+        else if (silentEnds >= 3) { wantOn = false; watchVisibility(false); set("stopped", "No speech detected. Voice input stopped."); return; }
+        else if (quickEnds >= 3) { wantOn = false; pendingError = MSG.unstable; }
         else { diag("auto-restart"); startSession(); return; }
       }
       wantOn = false; watchVisibility(false);
@@ -176,19 +186,19 @@
       var r;
       try { r = new Ctor(); } catch (e) { wantOn = false; set("error", MSG.unavailable); return; }
       r.lang = opts.lang || "en-US";
-      r.continuous = true;      // a hint: many browsers still end after a pause, so onEnd restarts
-      r.interimResults = true;
+      r.continuous = opts.continuous !== false;         // a hint: many browsers still end after a pause, so onEnd restarts
+      r.interimResults = opts.interimResults !== false;
       r.maxAlternatives = 1;
-      inserted = 0; lastFinal = ""; interim = ""; gotSpeech = false; startedAt = now();
+      inserted = 0; lastFinal = ""; interim = ""; gotSpeech = false; browserAborted = false; startedAt = now();
       r.onstart = function () { if (id === session) { diag("s" + id + " start"); if (wantOn) set("listening", ""); } };
       ["audiostart", "soundstart", "speechstart", "speechend", "soundend", "audioend", "nomatch"].forEach(function (name) {
         r["on" + name] = function () { if (id === session) diag("s" + id + " " + name); };
       });
       r.onresult = function (e) { if (id === session) onResult(e); };
-      r.onerror = function (e) { if (id === session) onError(e && e.error); };
+      r.onerror = function (e) { if (id === session) onError(e && e.error, e && e.message); };
       r.onend = function () { if (id === session) onEnd(); };
       rec = r;
-      diag("s" + id + " start() called hidden=" + (isHidden() ? 1 : 0));
+      diag("s" + id + " start() called hidden=" + (isHidden() ? 1 : 0) + " continuous=" + (r.continuous ? 1 : 0) + " interim=" + (r.interimResults ? 1 : 0) + " lang=" + r.lang);
       try {
         r.start();
       } catch (e) {
