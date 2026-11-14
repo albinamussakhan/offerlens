@@ -44,7 +44,12 @@
       return '<button type="button" data-s="' + n + '" class="' + (cur ? "cur" : ok ? "ok" : "") + '"' + (cur ? ' aria-current="step"' : "") + (!cur && !ok ? " disabled" : "") + ' title="' + title + '" aria-label="Step ' + (n + 1) + ": " + STEP_NAMES[n] + '">0' + (n + 1) + "</button>";
     }).join("");
   }
+  // Optional voice input for the current answer (public/voice.js). Any view change ends it.
+  var voice = null;
+  function stopVoice() { if (voice) voice.cancel(); }
+  window.addEventListener("pagehide", stopVoice);
   function show(v) {
+    stopVoice();
     state.view = v;
     VIEWS.forEach(function (k) { $("v-" + k).hidden = k !== v; });
     layoutUpload();
@@ -186,6 +191,7 @@
 
   /* ---------- question pages (steps 02 to 04) ---------- */
   function renderQuestion(i) {
+    stopVoice(); voice = null;
     var a = state.analysis, q = state.qs[i], last = i === 2;
     state.step = i + 1;
     var snap = i === 0 ?
@@ -196,7 +202,9 @@
       '<h1 class="qh">' + esc(q.question) + '</h1><p class="lead">' + esc(q.why) + "</p>" +
       '<details><summary>Show what a strong answer covers</summary><ul class="checks">' + q.passPoints.map(function (p) { return '<li><svg width="18" height="18" style="color:var(--orange)"><use href="#i-check"/></svg>' + esc(p) + "</li>"; }).join("") + "</ul></details>" +
       '<label class="sr-only" for="ans">Your answer</label><textarea id="ans" placeholder="Write your answer the way you would say it in the interview. Name tools, trade-offs and real numbers where you can.">' + esc(state.answers[q.id] || "") + "</textarea>" +
-      '<div class="meta"><span class="hint" id="cnt"></span></div>' +
+      '<div class="meta"><span class="hint" id="cnt"></span><span style="display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:baseline;gap:4px 12px;text-align:right"><span class="hint" id="vstat" role="status" aria-live="polite"></span>' +
+      '<button class="linkbtn" id="mic" type="button" aria-pressed="false" hidden title="Uses your browser\'s speech recognition. Offerlens does not record or store audio; your browser may send it to its own speech service.">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span id="micTx">Speak your answer</span></button></span></div>' +
       '<div class="submitrow"><button class="btn line" id="back" type="button">Back</button><button class="btn" id="next" disabled>' + (last ? "Get my result" : "Next question") + '</button><span class="hint" id="subhint"></span></div></div>';
     var ta = $("ans");
     function upd() {
@@ -207,7 +215,37 @@
     }
     ta.addEventListener("input", function () { state.answers[q.id] = ta.value; upd(); renderSteps(); });
     $("back").addEventListener("click", function () { if (i === 0) { state.step = 0; show("upload"); goStart(); } else renderQuestion(i - 1); });
-    $("next").addEventListener("click", function () { state.answers[q.id] = ta.value; if (last) grade(); else renderQuestion(i + 1); });
+    $("next").addEventListener("click", function () { stopVoice(); state.answers[q.id] = ta.value; if (last) grade(); else renderQuestion(i + 1); });
+    if (window.OfferlensVoice) {
+      var tail = function (s) { return s.length > 60 ? "…" + s.slice(-60) : s; };
+      voice = window.OfferlensVoice.create({
+        window: window,
+        lang: "en-US",
+        onAppend: function (t) {
+          if ($("ans") !== ta) return; // this question is no longer on screen
+          var s = ta.selectionStart, e = ta.selectionEnd;
+          var editing = document.activeElement === ta && e < ta.value.length;
+          ta.value = window.OfferlensVoice.joinText(ta.value, t);
+          if (editing) ta.setSelectionRange(s, e); // keep the caret where the user is editing mid-text
+          ta.dispatchEvent(new Event("input")); // same path as typing: saves the answer and updates Next
+        },
+        onState: function (s, detail) {
+          var b = $("mic"), st = $("vstat");
+          if (!b || !st || $("ans") !== ta) return;
+          var on = s === "listening" || s === "processing";
+          b.hidden = s === "unsupported";
+          b.setAttribute("aria-pressed", on ? "true" : "false");
+          $("micTx").textContent = on ? "Stop speaking" : "Speak your answer";
+          st.textContent =
+            s === "listening" ? (detail ? "Listening… “" + tail(detail) + "”" : "Listening…") :
+            s === "processing" ? (detail || "Processing…") :
+            s === "stopped" ? (detail || "Voice input stopped. Your text is kept.") :
+            s === "error" || s === "unsupported" ? detail :
+            "Voice input ready";
+        },
+      });
+      $("mic").addEventListener("click", function () { if (!state.busy && voice) voice.toggle(); });
+    }
     upd();
     show("q");
     ta.focus({ preventScroll: true });
