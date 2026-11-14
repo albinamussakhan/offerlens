@@ -30,9 +30,16 @@
     for (var i = 0; i < n - 1; i++) if (!answered(i)) return false;
     return true;
   }
+  // The upload view has two screens: the landing page (intro sections) and step 01 (only the #start form).
+  var landing = true;
+  function layoutUpload() {
+    var secs = $("v-upload").children;
+    for (var i = 0; i < secs.length; i++) secs[i].hidden = landing ? secs[i].id === "start" : secs[i].id !== "start";
+  }
   function renderSteps() {
+    var onLanding = landing && state.view === "upload";
     $("steps").innerHTML = [0, 1, 2, 3].map(function (n) {
-      var cur = state.step === n, ok = !cur && state.view !== "scan" && reachable(n);
+      var cur = state.step === n && !onLanding, ok = !cur && state.view !== "scan" && reachable(n);
       var title = ok || cur ? STEP_NAMES[n] : (n === 1 ? "Add your documents first" : "Answer the previous question first");
       return '<button type="button" data-s="' + n + '" class="' + (cur ? "cur" : ok ? "ok" : "") + '"' + (cur ? ' aria-current="step"' : "") + (!cur && !ok ? " disabled" : "") + ' title="' + title + '" aria-label="Step ' + (n + 1) + ": " + STEP_NAMES[n] + '">0' + (n + 1) + "</button>";
     }).join("");
@@ -40,6 +47,7 @@
   function show(v) {
     state.view = v;
     VIEWS.forEach(function (k) { $("v-" + k).hidden = k !== v; });
+    layoutUpload();
     renderSteps();
     window.scrollTo(0, 0);
   }
@@ -54,9 +62,15 @@
   });
   function resetAll() {
     state.analysis = null; state.qs = []; state.answers = {}; state.result = null; state.step = 0;
-    show("upload");
+    landing = true; show("upload");
   }
   $("resetBtn").addEventListener("click", function () { if (!state.busy) resetAll(); });
+  // Logo returns to the landing page without clearing inputs or interview progress.
+  var brand = document.querySelector(".brand");
+  function goLanding() { if (state.busy) return; landing = true; show("upload"); }
+  brand.setAttribute("role", "link"); brand.setAttribute("tabindex", "0"); brand.setAttribute("aria-label", "Offerlens home"); brand.style.cursor = "pointer";
+  brand.addEventListener("click", goLanding);
+  brand.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); goLanding(); } });
 
   /* ---------- 3 second scan ---------- */
   function runScan(title, labels, docNames, work) {
@@ -145,7 +159,7 @@
     area.addEventListener("input", checkReady);
   }
   wireInput("cv"); wireInput("jd");
-  function goStart() { $("start").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }
+  function goStart() { landing = false; state.step = 0; show("upload"); }
   $("heroCta").addEventListener("click", goStart);
   $("ctaBtn").addEventListener("click", goStart);
 
@@ -267,7 +281,7 @@
   }
 
   /* ---------- boot ---------- */
-  checkReady(); renderSteps();
+  checkReady(); layoutUpload(); renderSteps();
   function init() {
     fetch("/api/health").then(function (r) { if (!r.ok) throw new Error("down"); }).catch(function () { $("no-ai").hidden = false; });
   }
