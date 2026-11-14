@@ -157,6 +157,7 @@ test("a final that arrives after an unfinished result waits, so nothing is added
 test("Stop asks for final words (Processing), then shows Stopped; extra clicks while finishing are ignored", () => {
   const h = load({ initial: "Typed." });
   h.begin();
+  h.tick(600);
   h.voice.toggle();
   assert.equal(h.state(), "processing");
   assert.equal(h.rec().stopped, true);
@@ -173,6 +174,7 @@ test("if a browser never fires end after stop, a timer finishes so the button ca
   const h = load();
   h.begin();
   h.rec().results([["kept", false]]);
+  h.tick(600);
   h.voice.toggle();
   h.tick(4_000);
   assert.equal(h.state(), "stopped");
@@ -274,5 +276,71 @@ test("a hidden tab does not restart recognition (no surprise microphone use)", (
   h.rec().end();
   assert.equal(h.instances.length, 1);
   assert.equal(h.state(), "stopped");
+  assert.match(h.lastDetail(), /paused because the page was hidden/, "distinct from a manual stop");
   assert.equal(h.answer, "before hiding");
+});
+
+/* ---------- iPad Safari "stops immediately" diagnosis ---------- */
+
+test("a second tap right after starting (double tap / shifting button) does not stop the session", () => {
+  const h = load();
+  h.voice.toggle();
+  h.tick(120);
+  h.voice.toggle(); // ghost or double tap
+  assert.equal(h.voice.active, true);
+  assert.equal(h.rec().stopped, false);
+  h.rec().fireStart();
+  assert.equal(h.state(), "listening");
+  assert.match(h.voice.log().join("\n"), /toggle ignored \(double tap\)/);
+  h.tick(600);
+  h.voice.toggle(); // a deliberate later tap still stops
+  assert.equal(h.rec().stopped, true);
+});
+
+test("a manual stop and a hidden page give different messages, so a screenshot tells them apart", () => {
+  const manual = load();
+  manual.begin();
+  manual.tick(2_000);
+  manual.voice.toggle();
+  manual.rec().end();
+  assert.equal(manual.state(), "stopped");
+  assert.equal(manual.lastDetail(), "", "manual stop keeps the plain 'Voice input stopped' text");
+
+  const hidden = load();
+  hidden.begin();
+  hidden.win.document.hidden = true;
+  hidden.rec().end();
+  assert.equal(hidden.state(), "stopped");
+  assert.notEqual(hidden.lastDetail(), "");
+});
+
+test("Safari-like quick end right after start (no error) is retried, not reported as a plain stop", () => {
+  const h = load();
+  h.voice.toggle();
+  h.rec().fireStart();
+  h.rec().onaudiostart();
+  h.tick(300);
+  h.rec().end(); // Safari ends on its own
+  assert.equal(h.instances.length, 2, "auto-restart attempted");
+  assert.notEqual(h.state(), "stopped");
+  const log = h.voice.log().join("\n");
+  assert.match(log, /s1 audiostart/);
+  assert.match(log, /s1 end ms=300 want=1 hidden=0 speech=0/);
+  assert.match(log, /auto-restart/);
+});
+
+test("diagnostic log records events and error codes but never transcript text", () => {
+  const h = load();
+  h.begin();
+  h.rec().results([["my secret answer words", false]]);
+  h.rec().results([["my secret answer words", true]]);
+  h.rec().error("network");
+  h.rec().end();
+  const log = h.voice.log().join("\n");
+  assert.match(log, /s1 start/);
+  assert.match(log, /result n=1 final=1 chars=22/);
+  assert.match(log, /error network/);
+  assert.match(log, /state error/);
+  assert.doesNotMatch(log, /secret|answer words/);
+  assert.doesNotMatch(h.voice.trail(), /secret/);
 });

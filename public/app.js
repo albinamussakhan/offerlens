@@ -46,6 +46,10 @@
   }
   // Optional voice input for the current answer (public/voice.js). Any view change ends it.
   var voice = null;
+  // Diagnostics for devices without a console (e.g. iPad): open the site with ?voicedebug to show the
+  // recent voice events after the status. Event names and error codes only, never transcript text.
+  var VOICE_DEBUG = /voicedebug/.test(location.search + location.hash);
+  window.__voiceLog = function () { return voice ? voice.log() : []; };
   function stopVoice() { if (voice) voice.cancel(); }
   window.addEventListener("pagehide", stopVoice);
   function show(v) {
@@ -242,6 +246,7 @@
             s === "stopped" ? (detail || "Voice input stopped. Your text is kept.") :
             s === "error" || s === "unsupported" ? detail :
             "Voice input ready";
+          if (VOICE_DEBUG && voice) st.textContent += " [" + voice.trail(12) + "]";
         },
       });
       $("mic").addEventListener("click", function () { if (!state.busy && voice) voice.toggle(); });

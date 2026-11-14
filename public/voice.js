@@ -19,6 +19,7 @@
     "language-not-supported": "English speech recognition isn't available here. You can type your answer.",
     unavailable: "Voice input couldn't start. You can type your answer.",
     unstable: "Voice input keeps stopping. Your text is kept; you can type or try again.",
+    hidden: "Voice input paused because the page was hidden. Your text is kept; tap Speak your answer to continue.",
     other: "Voice input stopped because of an error. Your text is kept.",
   };
 
@@ -54,9 +55,27 @@
     var lastFinal = "";      // last finalized transcript in this session (for cumulative-result browsers)
     var interim = "";        // current unfinished words (preview only)
     var gotSpeech = false, startedAt = 0, quickEnds = 0, silentEnds = 0, pendingError = "";
-    var finishTimer = null;
+    var finishTimer = null, lastToggle = -Infinity;
+
+    // Diagnostics: event names, error codes, counts and state changes only. Never audio or transcript text.
+    var log = [], t0 = now();
+    function diag(entry) {
+      var line = "+" + (now() - t0) + "ms " + entry;
+      log.push(line);
+      if (log.length > 80) log.shift();
+      if (typeof console !== "undefined" && console.debug) console.debug("[voice] " + line);
+    }
+    function isHidden() { return !!(w.document && w.document.hidden); }
+    function onVisibility() { diag("visibility " + (w.document && w.document.visibilityState)); }
+    function watchVisibility(on) {
+      var d = w.document;
+      if (!d || !d.addEventListener) return;
+      d.removeEventListener("visibilitychange", onVisibility);
+      if (on) d.addEventListener("visibilitychange", onVisibility);
+    }
 
     function set(s, detail) {
+      if (s !== state) diag("state " + s);
       state = s;
       try { opts.onState(s, detail || ""); } catch (e) { /* UI may be gone; never break recognition */ }
     }
@@ -82,6 +101,13 @@
     function onResult(e) {
       var results = e && e.results;
       if (!results) return;
+      var finals = 0, chars = 0;
+      for (var k = 0; k < results.length; k++) {
+        if (results[k] && results[k].isFinal) finals++;
+        chars += results[k] && results[k][0] ? String(results[k][0].transcript || "").trim().length : 0;
+      }
+      // Counts only: how many results, how many final, how many characters (never the words themselves).
+      diag("s" + session + " result n=" + results.length + " final=" + finals + " chars=" + chars);
       if (results.length < inserted) inserted = 0; // the browser started a new result list
       // Append finals strictly in order. A final that follows an unfinished result waits (shown as preview)
       // until everything before it is final, so words are never added twice or out of order.
@@ -102,6 +128,7 @@
     }
 
     function onError(code) {
+      diag("s" + session + " error " + code);
       if (code === "aborted") return;
       if (code === "no-speech") { silentEnds++; return; } // end follows; handled there
       wantOn = false;
@@ -123,15 +150,23 @@
       rec = null;
       // Recognition is over: words that never got an isFinal flag (common in Safari) are kept, not lost.
       if (interim) { var keep = interim; interim = ""; append(keep); }
-      if (wantOn && !(w.document && w.document.hidden)) {
+      var hidden = isHidden();
+      diag("s" + session + " end ms=" + (now() - startedAt) + " want=" + (wantOn ? 1 : 0) + " hidden=" + (hidden ? 1 : 0) + " speech=" + (gotSpeech ? 1 : 0));
+      if (wantOn && hidden) {
+        // Never reopen the microphone for a page the user can't see; say so instead of a plain "stopped".
+        wantOn = false; watchVisibility(false);
+        set("stopped", MSG.hidden);
+        return;
+      }
+      if (wantOn) {
         var quick = now() - startedAt < 1500 && !gotSpeech;
         quickEnds = quick ? quickEnds + 1 : 0;
         if (gotSpeech) silentEnds = 0;
         if (quickEnds >= 3) { wantOn = false; pendingError = MSG.unstable; }
         else if (silentEnds >= 3) { wantOn = false; set("stopped", "No speech detected. Voice input stopped."); return; }
-        else { startSession(); return; }
+        else { diag("auto-restart"); startSession(); return; }
       }
-      wantOn = false;
+      wantOn = false; watchVisibility(false);
       if (pendingError) set("error", pendingError);
       else set("stopped");
     }
@@ -145,14 +180,19 @@
       r.interimResults = true;
       r.maxAlternatives = 1;
       inserted = 0; lastFinal = ""; interim = ""; gotSpeech = false; startedAt = now();
-      r.onstart = function () { if (id === session && wantOn) set("listening", ""); };
+      r.onstart = function () { if (id === session) { diag("s" + id + " start"); if (wantOn) set("listening", ""); } };
+      ["audiostart", "soundstart", "speechstart", "speechend", "soundend", "audioend", "nomatch"].forEach(function (name) {
+        r["on" + name] = function () { if (id === session) diag("s" + id + " " + name); };
+      });
       r.onresult = function (e) { if (id === session) onResult(e); };
       r.onerror = function (e) { if (id === session) onError(e && e.error); };
       r.onend = function () { if (id === session) onEnd(); };
       rec = r;
+      diag("s" + id + " start() called hidden=" + (isHidden() ? 1 : 0));
       try {
         r.start();
       } catch (e) {
+        diag("s" + id + " start() threw " + (e && e.name));
         rec = null; wantOn = false;
         set("error", MSG.unavailable);
       }
@@ -162,6 +202,7 @@
       if (unsupportedMsg) { set("unsupported", unsupportedMsg); return; }
       if (rec || wantOn) return; // one session at a time
       wantOn = true; quickEnds = 0; silentEnds = 0; pendingError = "";
+      watchVisibility(true);
       set("processing", "Waiting for the microphone…");
       startSession();
     }
@@ -171,12 +212,14 @@
       if (!rec) { wantOn = false; return; }
       if (!wantOn) return; // already stopping
       wantOn = false;
+      diag("stop requested");
       set("processing", "Finishing…");
       var id = session, r = rec;
       try { r.stop(); } catch (e) { /* fall through to the timer */ }
       clearFinishTimer();
       finishTimer = setTimeout(function () { // some browsers never fire "end" after stop()
         if (id !== session) return;
+        diag("s" + id + " no end event after stop; finishing");
         session++;
         try { r.abort(); } catch (e) { /* ignore */ }
         onEnd();
@@ -189,13 +232,20 @@
      */
     function cancel() {
       var was = rec;
+      if (was || wantOn) diag("cancel (view change)");
       session++; wantOn = false; rec = null; interim = ""; pendingError = "";
-      clearFinishTimer();
+      clearFinishTimer(); watchVisibility(false);
       if (was) { try { was.abort(); } catch (e) { /* ignore */ } }
       if (!unsupportedMsg && state !== "ready") set("ready");
     }
 
     function toggle() {
+      // A second tap within half a second (double tap, or the button shifting under the finger as its
+      // label changes) must not stop the session the first tap just started.
+      var t = now();
+      if (t - lastToggle < 500) { diag("toggle ignored (double tap)"); return; }
+      lastToggle = t;
+      diag("toggle " + (wantOn ? "stop" : rec ? "ignored (finishing)" : "start"));
       if (wantOn) stop();
       else if (!rec) start();
       // while finishing (rec set, wantOn false), extra clicks are ignored
@@ -204,6 +254,9 @@
     set(unsupportedMsg ? "unsupported" : "ready", unsupportedMsg);
     return {
       start: start, stop: stop, cancel: cancel, toggle: toggle,
+      /** Diagnostic lines (no audio, no transcript text). */
+      log: function () { return log.slice(); },
+      trail: function (n) { return log.slice(-(n || 10)).map(function (l) { return l.replace(/^\+\d+ms /, ""); }).join(" · "); },
       get state() { return state; },
       get active() { return !!rec || wantOn; },
     };
