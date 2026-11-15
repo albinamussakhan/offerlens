@@ -1,8 +1,8 @@
 # Offerlens
 
-**Practise the interview for a specific job before you have it.**
+**Know where you stand before the interview.**
 
-Offerlens reads your CV and a job vacancy, asks you the three interview questions most likely to matter for that role, and then gives you clear, written feedback: what you covered, what you missed, how a strong answer sounds, and what to do next.
+Offerlens is an AI-powered career preparation platform that helps job seekers understand how well their experience aligns with a specific opportunity, identify areas for improvement, and prepare through personalized interview practice. By connecting resume analysis with targeted questions and actionable feedback, Offerlens turns uncertainty into a clear preparation plan.
 
 It is built for job seekers preparing for a specific application, especially people who have a CV and a vacancy in hand but no one to run a realistic practice interview with them.
 
