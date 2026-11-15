@@ -32,9 +32,8 @@ api.get("/health", (_req, res) => {
 
 api.post("/analyze", async (req, res, next) => {
   try {
-    const body = parse(analyzeBody, req.body);
-    const cv = body.cv.slice(0, config.maxDocChars);
-    const jd = body.jd.slice(0, config.maxDocChars);
+    // The CV and vacancy are validated against MAX_DOC_CHARS above and are analyzed in full: never cut here.
+    const { cv, jd } = parse(analyzeBody, req.body);
     const analysis = await callJSON({
       kind: "analyze",
       model: config.analyzeModel,

@@ -42,7 +42,7 @@ test/              node:test unit and API tests (no network needed)
 
 ## API
 
-`POST /api/analyze` with `{ "cv": string, "jd": string }` returns `{ analysis }`: role, CV match score, matched skills, gaps, and exactly 3 questions (2 technical, 1 fundamental), each with the key points a passing answer needs.
+`POST /api/analyze` with `{ "cv": string, "jd": string }` returns `{ analysis }`: role, CV match score, matched skills, gaps, and exactly 3 questions (2 technical, 1 fundamental), each with the key points a passing answer needs. The CV and vacancy must each be 150 to `MAX_DOC_CHARS` characters; a longer document gets a 400 naming it and the limit, and accepted documents are sent to the model in full.
 
 `POST /api/grade` with `{ "analysis": <from analyze>, "answers": { "Q1", "Q2", "Q3" } }` returns `{ result }`: per-answer score, covered and missed points, a model answer, a summary, strongest point, biggest risk, four next steps, plus `chance` and `verdict` computed on the server. Each answer must be 30 to `MAX_ANSWER_CHARS` characters; an answer over the limit gets a 400 naming the question and the limit, and accepted answers are sent to the grader in full.
 
@@ -58,7 +58,7 @@ Errors are JSON: `{ "error": "message for the user" }`.
 | `ANALYZE_MODEL` | `claude-haiku-5-5` | Fast model that writes the 3 questions |
 | `GRADE_MODEL` | `claude-sonnet-5-5` | Stronger model that grades the answers |
 | `PORT` | `3000` | |
-| `MAX_DOC_CHARS` | `14000` | Characters of CV and vacancy sent to the model |
+| `MAX_DOC_CHARS` | `30000` | Longest accepted CV or vacancy, in characters. Longer documents are rejected with a message naming the document; accepted documents are analyzed in full |
 | `MAX_ANSWER_CHARS` | `20000` | Longest accepted answer, in characters. Longer answers are rejected with a message naming the question; accepted answers are graded in full |
 | `AI_TIMEOUT_MS` | `120000` | Timeout for one Anthropic request; the SDK retries at most once |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | `20` / 15 min | Per-IP limit on `/api` |

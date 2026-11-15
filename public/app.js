@@ -121,26 +121,37 @@
   async function extract(file) {
     var name = file.name.toLowerCase();
     if (/\.(txt|md)$/.test(name)) return file.text();
+    // Library errors (e.g. "Invalid PDF structure", JSZip's "end of central directory") are replaced with plain words.
+    var unreadable = function (kind) { return new Error("Could not read " + file.name + ". The " + kind + " may be damaged or not a real " + kind + " file. Save it again as PDF or DOCX, or paste the text instead."); };
     if (/\.docx$/.test(name)) {
       if (!window.mammoth) throw new Error("The DOCX reader did not load. Paste the text instead.");
-      var r = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      var r;
+      try { r = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() }); }
+      catch (e) { throw unreadable("DOCX"); }
       return r.value;
     }
     if (/\.pdf$/.test(name)) {
       var pdfjs = await import("/vendor/pdfjs/pdf.min.mjs");
       pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.mjs";
-      var pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-      var out = [];
-      for (var p = 1; p <= pdf.numPages; p++) {
-        var tc = await (await pdf.getPage(p)).getTextContent();
-        var line = [], lastY = null;
-        tc.items.forEach(function (it) {
-          var y = it.transform[5];
-          if (lastY !== null && Math.abs(y - lastY) > 3) { out.push(line.join(" ")); line = []; }
-          line.push(it.str); lastY = y;
-        });
-        out.push(line.join(" "));
+      var pdf;
+      try { pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
+      catch (e) {
+        if (e && e.name === "PasswordException") throw new Error(file.name + " is password-protected. Remove the password or paste the text instead.");
+        throw unreadable("PDF");
       }
+      var out = [];
+      try {
+        for (var p = 1; p <= pdf.numPages; p++) {
+          var tc = await (await pdf.getPage(p)).getTextContent();
+          var line = [], lastY = null;
+          tc.items.forEach(function (it) {
+            var y = it.transform[5];
+            if (lastY !== null && Math.abs(y - lastY) > 3) { out.push(line.join(" ")); line = []; }
+            line.push(it.str); lastY = y;
+          });
+          out.push(line.join(" "));
+        }
+      } catch (e) { throw unreadable("PDF"); }
       return out.join("\n");
     }
     throw new Error("Use a PDF, DOCX or TXT file.");

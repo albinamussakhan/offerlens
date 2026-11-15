@@ -7,9 +7,22 @@ const strList = (maxItems, maxLen) =>
 
 /* ---------- request bodies ---------- */
 
+const fmt = (n) => n.toLocaleString("en-US");
+
+/** A CV or vacancy: at least 150 characters, at most MAX_DOC_CHARS (after trimming). */
+const documentField = (label) =>
+  z.string().trim().min(150, `${label} is too short. Add more text.`).superRefine((s, ctx) => {
+    if (s.length > config.maxDocChars) {
+      ctx.addIssue({
+        code: "custom",
+        message: `${label} is too long (${fmt(s.length)} characters; the limit is ${fmt(config.maxDocChars)}). Shorten it and try again.`,
+      });
+    }
+  });
+
 export const analyzeBody = z.object({
-  cv: z.string().trim().min(150, "The CV is too short. Add more text.").max(200_000),
-  jd: z.string().trim().min(150, "The vacancy is too short. Add more text.").max(200_000),
+  cv: documentField("The CV"),
+  jd: documentField("The vacancy"),
 });
 
 const questionSchema = z.object({
@@ -31,8 +44,6 @@ export const analysisSchema = z.object({
   gaps: strList(4, 160).default([]),
   questions: z.array(questionSchema).length(3),
 });
-
-const fmt = (n) => n.toLocaleString("en-US");
 
 /** One interview answer: at least 30 characters, at most MAX_ANSWER_CHARS (after trimming). */
 const answerField = (n) =>

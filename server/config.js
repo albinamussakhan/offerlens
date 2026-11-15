@@ -16,7 +16,9 @@ export const config = {
   gradeModel: process.env.GRADE_MODEL || "claude-sonnet-5-5",
   // Per-request limit for one Anthropic call; the SDK retries at most once.
   aiTimeoutMs: int(process.env.AI_TIMEOUT_MS, 120_000),
-  maxDocChars: int(process.env.MAX_DOC_CHARS, 14000),
+  // Longest accepted CV or vacancy, in characters (after trimming). Longer documents are rejected
+  // with a clear message; accepted documents are always analyzed in full, never cut.
+  maxDocChars: int(process.env.MAX_DOC_CHARS, 30_000),
   // Longest accepted interview answer, in characters (after trimming). Longer answers are rejected
   // with a clear message; accepted answers are always graded in full, never cut.
   maxAnswerChars: int(process.env.MAX_ANSWER_CHARS, 20_000),

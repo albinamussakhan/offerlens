@@ -13,4 +13,8 @@ createApp().listen(config.port, () => {
     `Answer limit: ${config.maxAnswerChars} characters` +
       (process.env.MAX_ANSWER_CHARS ? ` (from MAX_ANSWER_CHARS=${process.env.MAX_ANSWER_CHARS})` : " (default)"),
   );
+  console.log(
+    `Document limit: ${config.maxDocChars} characters per CV or vacancy` +
+      (process.env.MAX_DOC_CHARS ? ` (from MAX_DOC_CHARS=${process.env.MAX_DOC_CHARS})` : " (default)"),
+  );
 });

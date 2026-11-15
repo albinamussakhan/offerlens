@@ -244,3 +244,9 @@ textarea:focus { outline: 2px solid var(--blue); outline-offset: 0; border-color
 .brand .nm .lens { color: var(--blue); }
 .logo { display: block; flex: none; }
 .cta .logo { margin: 0 auto 14px; width: 36px; height: 36px; }
+
+/* .start, .scanwrap and .pagehead set padding with a shorthand that drops the 20px side gutter of .wrap/.narrow.
+   Restore it only once the window is narrower than the column plus gutters (and a classic scrollbar), so desktop
+   layouts are unchanged. */
+@media (max-width: 939px) { .start, .scanwrap { padding-left: 20px; padding-right: 20px; } }
+@media (max-width: 819px) { .pagehead { padding-left: 20px; padding-right: 20px; } }

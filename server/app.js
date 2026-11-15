@@ -57,7 +57,12 @@ export function createApp() {
 
   // eslint-disable-next-line no-unused-vars
   app.use((err, _req, res, _next) => {
-    if (err?.type === "entity.too.large") return res.status(413).json({ error: "That text is too large." });
+    if (err?.type === "entity.too.large") {
+      const n = (x) => x.toLocaleString("en-US");
+      return res.status(413).json({
+        error: `That text is too large to send. A CV or vacancy can be up to ${n(config.maxDocChars)} characters and each answer up to ${n(config.maxAnswerChars)}. Shorten it and try again.`,
+      });
+    }
     if (err?.type === "entity.parse.failed") return res.status(400).json({ error: "The request was not valid JSON." });
     const status = err?.status && err.status >= 400 && err.status < 600 ? err.status : 500;
     if (status === 500) console.error("[server]", err);
