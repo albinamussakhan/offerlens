@@ -27,11 +27,15 @@
 <!-- UPLOAD -->
 <div id="v-upload">
   <section class="hero">
-    <p class="eyebrow">Interview prep</p>
-    <h1>Know if you would pass before the interview</h1>
+    <p class="eyebrow">Interview prep for your next role</p>
+    <h1>Find out if you'd pass the interview, before you're in it</h1>
     <p class="by">Tailored to <b>your CV</b> and the vacancy</p>
-    <p class="sub">Add both documents. Answer the 3 questions that matter most for this role and get a clear verdict with next steps.</p>
-    <button class="btn" id="heroCta" type="button">Add your CV and vacancy</button>
+    <p class="sub">Add your CV and the job post. We find the gaps an interviewer will probe, ask you the 3 questions that matter, and tell you if you're ready.</p>
+    <div class="hero-ctas">
+      <button class="btn" id="heroCta" type="button">Check my readiness</button>
+      <button class="btn outline" id="sampleCta" type="button">Try a sample first</button>
+    </div>
+    <p class="hero-meta">Free · No sign-up · About 10 minutes</p>
     <div class="hero-vis">
       <div class="vis hero-img" aria-hidden="true">
         <div class="sheet" style="left:9%;top:14%;width:34%;transform:rotate(-4deg)"><i class="h"></i><i></i><i style="width:80%"></i><i style="width:90%"></i><i style="width:60%"></i><i></i></div>
@@ -46,11 +50,11 @@
 
   <section class="start wrap" id="start">
     <div class="crumb"><b>01</b><i></i><span>Resume &amp; job description</span></div>
-    <h2 style="margin-top:18px">Add your documents</h2>
-    <p class="muted">Upload a file or paste the text. Both are needed.</p>
+    <h2 style="margin-top:18px">Your CV and the job you want</h2>
+    <p class="muted">Drop a file or paste text. We need both to find your gaps.</p>
     <div class="grid2">
       <div class="card">
-        <div class="fh"><label for="cv-text">Your CV</label><span class="count" id="cv-count">0 characters</span></div>
+        <div class="fh"><label for="cv-text">Your CV<svg class="okmark" id="cv-ok" width="16" height="16" aria-hidden="true" focusable="false" hidden><use href="#i-check"/></svg></label><span class="count" id="cv-count">0 characters</span></div>
         <label class="drop" id="cv-drop" for="cv-file">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
           <span id="cv-status">Drop a PDF, DOCX or TXT, or <u>browse</u></span>
@@ -59,7 +63,7 @@
         <textarea id="cv-text" placeholder="Or paste the text of your CV here"></textarea>
       </div>
       <div class="card">
-        <div class="fh"><label for="jd-text">Vacancy</label><span class="count" id="jd-count">0 characters</span></div>
+        <div class="fh"><label for="jd-text">Vacancy<svg class="okmark" id="jd-ok" width="16" height="16" aria-hidden="true" focusable="false" hidden><use href="#i-check"/></svg></label><span class="count" id="jd-count">0 characters</span></div>
         <label class="drop" id="jd-drop" for="jd-file">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
           <span id="jd-status">Drop a PDF, DOCX or TXT, or <u>browse</u></span>
@@ -70,9 +74,11 @@
     </div>
     <div class="actions">
       <button class="btn" id="analyze" disabled>Get my 3 questions</button>
-      <button class="linkbtn" id="example" type="button">Fill with an example</button>
-      <span class="hint">Text is sent to Claude for analysis. Nothing is saved on the server.</span>
+      <button class="btn outline" id="example" type="button">Try a sample CV + job</button>
+      <span class="hint">Analyzed by Claude. Nothing is saved on our servers.</span>
     </div>
+    <p class="ready-msg" id="ready-msg"></p>
+    <p class="sr-only" id="ready-live" role="status" aria-live="polite"></p>
     <div class="notice err" id="up-err" role="alert" hidden></div>
     <div class="notice" id="no-ai" hidden>The analysis service is not reachable. Check that the server is running and try again.</div>
   </section>
@@ -146,7 +152,7 @@
     <svg class="logo" width="30" height="30" aria-hidden="true"><use href="#i-logo"/></svg>
     <p class="eyebrow">Interview prep</p>
     <h2>Ready to find out?</h2>
-    <button class="btn" id="ctaBtn" type="button">Add your CV and vacancy</button>
+    <button class="btn" id="ctaBtn" type="button">Check my readiness</button>
     <p class="small">Nothing you add is stored on this page.</p>
   </section>
 </div>
@@ -163,7 +169,7 @@
         <div class="sweep"></div>
       </div>
       <ul class="ssteps" id="ssteps" style="text-align:left"></ul>
-      <div class="pbar" aria-hidden="true"><i id="pfill"></i></div>
+      <div class="pbar" id="pbar" aria-hidden="true"><i id="pfill"></i></div>
     </div>
   </div>
 </div>

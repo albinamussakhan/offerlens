@@ -120,7 +120,8 @@ test("guidance is hidden before submission, appears after grading, collapsed, pe
   await h.until(() => h.view() === "out", "results");
   const out = h.get("v-out").innerHTML;
   assert.match(out, /How each answer did/);
-  assert.match(out, /Estimated chance of an offer/);
+  assert.match(out, /Interview readiness/);
+  assert.match(out, /not a verified probability of receiving an offer/, "the number stays labelled as an estimate");
 
   const cards = out.split('<div class="rcard">').slice(1);
   assert.equal(cards.length, 3);
