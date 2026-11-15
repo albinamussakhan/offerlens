@@ -17,7 +17,9 @@ export const config = {
   // Per-request limit for one Anthropic call; the SDK retries at most once.
   aiTimeoutMs: int(process.env.AI_TIMEOUT_MS, 120_000),
   maxDocChars: int(process.env.MAX_DOC_CHARS, 14000),
-  maxAnswerChars: int(process.env.MAX_ANSWER_CHARS, 3000),
+  // Longest accepted interview answer, in characters (after trimming). Longer answers are rejected
+  // with a clear message; accepted answers are always graded in full, never cut.
+  maxAnswerChars: int(process.env.MAX_ANSWER_CHARS, 20_000),
   rateLimitWindowMs: int(process.env.RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
   rateLimitMax: int(process.env.RATE_LIMIT_MAX, 20),
   trustProxy: process.env.TRUST_PROXY === "1",

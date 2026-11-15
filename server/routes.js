@@ -19,7 +19,7 @@ function parse(schema, body) {
   const out = schema.safeParse(body);
   if (out.success) return out.data;
   // Only the messages written in schema.js are meant for people; anything else gets a generic line.
-  const friendly = out.error.issues.find((i) => i.message.endsWith("Add more text."));
+  const friendly = out.error.issues.find((i) => /(Add more text|Shorten it and try again)\.$/.test(i.message));
   throw new HttpError(400, friendly ? friendly.message : "The request is missing required fields.");
 }
 
@@ -52,16 +52,14 @@ api.post("/analyze", async (req, res, next) => {
 
 api.post("/grade", async (req, res, next) => {
   try {
+    // Answers are validated against MAX_ANSWER_CHARS above and are graded in full: never cut here.
     const { analysis, answers } = parse(gradeBody, req.body);
-    const clipped = Object.fromEntries(
-      Object.entries(answers).map(([id, text]) => [id, text.slice(0, config.maxAnswerChars)]),
-    );
     const result = await callJSON({
       kind: "grade",
       model: config.gradeModel,
-      prompt: gradePrompt({ analysis, answers: clipped }),
+      prompt: gradePrompt({ analysis, answers }),
       maxTokens: GRADE_MAX_TOKENS,
-      mockData: () => mocks.grade(clipped),
+      mockData: () => mocks.grade(answers),
       normalize: (raw) => normalizeGrade(raw, analysis),
       failMessage: "Could not grade all 3 answers. Try again.",
     });

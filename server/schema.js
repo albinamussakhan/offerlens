@@ -32,13 +32,22 @@ export const analysisSchema = z.object({
   questions: z.array(questionSchema).length(3),
 });
 
+const fmt = (n) => n.toLocaleString("en-US");
+
+/** One interview answer: at least 30 characters, at most MAX_ANSWER_CHARS (after trimming). */
+const answerField = (n) =>
+  z.string().trim().min(30).superRefine((s, ctx) => {
+    if (s.length > config.maxAnswerChars) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Your answer to question ${n} is too long (${fmt(s.length)} characters; the limit is ${fmt(config.maxAnswerChars)}). Shorten it and try again.`,
+      });
+    }
+  });
+
 export const gradeBody = z.object({
   analysis: analysisSchema,
-  answers: z.object({
-    Q1: z.string().trim().min(30).max(20_000),
-    Q2: z.string().trim().min(30).max(20_000),
-    Q3: z.string().trim().min(30).max(20_000),
-  }),
+  answers: z.object({ Q1: answerField(1), Q2: answerField(2), Q3: answerField(3) }),
 });
 
 /* ---------- model output, normalized defensively ---------- */

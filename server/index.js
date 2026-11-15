@@ -9,4 +9,8 @@ if (!config.mock && !config.apiKey) {
 
 createApp().listen(config.port, () => {
   console.log(`Offerlens running on http://localhost:${config.port}${config.mock ? " (mock AI)" : ""}`);
+  console.log(
+    `Answer limit: ${config.maxAnswerChars} characters` +
+      (process.env.MAX_ANSWER_CHARS ? ` (from MAX_ANSWER_CHARS=${process.env.MAX_ANSWER_CHARS})` : " (default)"),
+  );
 });
